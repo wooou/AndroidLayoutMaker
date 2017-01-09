@@ -1,0 +1,120 @@
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
+
+public class Zip {
+	static final int BUFFER = 2048;
+
+	private static String workDir = "F:\\projects\\XXXX\\app\\build\\outputs\\apk\\";
+
+	private static String sourceApk = "app-debug";
+
+	public static void main(String args[]) {
+		try {
+			ZipSubdirectory(new File(workDir + sourceApk), "umeng");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static void read(File apkFile) throws Exception {
+		ZipFile zipfile = new ZipFile(apkFile);
+		Enumeration<?> entries = zipfile.entries();
+		while (entries.hasMoreElements()) {
+			ZipEntry entry = ((ZipEntry) entries.nextElement());
+			String entryName = entry.getName();
+			if (entryName.startsWith("META-INF/channel")) {
+				System.out.println(entryName);
+				break;
+			}
+		}
+
+		zipfile.close();
+	}
+
+	// ZipSubdirectory函数将一个指定目录（包括它子目录）压缩成一个同名压缩文件(这里称为"ORIGIN")
+	public static File ZipSubdirectory(File myDir, String channel)
+			throws IOException {
+		// 创建缓冲输入流BufferedInputStream
+		BufferedInputStream origin = null;
+		// 创建ZipOutputStream对象，将向它传递希望写入文件的输出流
+		File zipFile = new File(myDir.getParent(), myDir.getName() + ".apk");
+		FileOutputStream fos = new FileOutputStream(zipFile);
+		ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(fos,
+				BUFFER));
+		// dirContents[]获取当前目录(myDir)所有文件对象（包括子目录名)
+		File dirContents[] = myDir.listFiles();
+		try {
+			// 处理当前目录所有文件对象，包括子目录
+			for (int i = 0; i < dirContents.length; i++) {
+				// 使用递归方法将当前目录的子目录转成一个ZIP文件，并作为一个ENTRY加进"ORIGIN"
+				if (dirContents[i].isDirectory()) {
+					System.out.println(dirContents[i].getName());
+					addDirFiles(out, "", dirContents[i]);
+				} else {
+					// 如果当前文件不是子目录
+					System.out.println("Compress file: "
+							+ dirContents[i].getName());
+					FileInputStream fis = new FileInputStream(dirContents[i]);
+					origin = new BufferedInputStream(fis, BUFFER);
+					// 为被读取的文件创建压缩条目
+					ZipEntry entry = new ZipEntry(dirContents[i].getName());
+					byte data[] = new byte[BUFFER];
+					int count;
+					// 在向ZIP输出流写入数据之前，必须首先使用out.putNextEntry(entry); 方法安置压缩条目对象
+					out.putNextEntry(entry);
+					// 向ZIP 文件写入数据
+					while ((count = origin.read(data, 0, BUFFER)) != -1) {
+						out.write(data, 0, count);
+					}
+					// 关闭输入流
+					origin.close();
+				}
+
+			}
+			ZipEntry entry = new ZipEntry(String.format("META-INF/channel_%s",
+					channel));
+			out.putNextEntry(entry);
+			out.close();
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+		// 递归返回
+		return zipFile;
+	}
+
+	private static void addDirFiles(ZipOutputStream out, String offsetPath,
+			File dir) throws IOException {
+		File dirContents[] = dir.listFiles();
+		for (int i = 0; i < dirContents.length; i++) {
+			if (dirContents[i].isDirectory()) {
+				addDirFiles(out, offsetPath + dir.getName() + "/",
+						dirContents[i]);
+			} else {
+				ZipEntry entry = new ZipEntry(offsetPath + dir.getName() + "/"
+						+ dirContents[i].getName());
+				// 在向ZIP输出流写入数据之前，必须首先使用out.putNextEntry(entry); 方法安置压缩条目对象
+				out.putNextEntry(entry);
+				System.out.println("=====");
+				FileInputStream fis = new FileInputStream(dirContents[i]);
+				BufferedInputStream origin = new BufferedInputStream(fis,
+						BUFFER);
+				byte data[] = new byte[BUFFER];
+				int count;
+				// 向ZIP 文件写入数据
+				while ((count = origin.read(data, 0, BUFFER)) != -1) {
+					out.write(data, 0, count);
+				}
+				origin.close();
+			}
+		}
+	}
+
+}
